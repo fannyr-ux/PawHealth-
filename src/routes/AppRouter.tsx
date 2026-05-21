@@ -34,10 +34,6 @@ export default function AppRouter() {
         element={<CreatePetPage />}
       />
       <Route
-        path="/pets/create"
-        element={<CreatePetPage />}
-      />
-      <Route
         path="/pets/:id"
         element={<PetDetailPage />}
       />
