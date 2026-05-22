@@ -1,69 +1,144 @@
-// server.js (Node/Express ejemplo)
 import 'dotenv/config'
 import express from 'express'
 import axios from 'axios'
+import cors from 'cors'
 
 const app = express()
+
+app.use(cors())
 app.use(express.json())
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
-
-const requestOpenAICompletion = async (payload, headers) => {
+const requestOpenAICompletion = async (
+  payload,
+  headers
+) => {
   try {
+    console.log(
+      '[OpenAI] Sending request...'
+    )
+
     return await axios.post(
       'https://api.openai.com/v1/chat/completions',
       payload,
-      { headers }
+      {
+        headers,
+        timeout: 30000,
+      }
     )
   } catch (error) {
-    const status = error?.response?.status
-    if (status === 429) {
-      const retryAfter = Number(error.response.headers?.['retry-after'] ?? 1) * 10000
-      console.warn(`OpenAI rate limit hit, retrying after ${retryAfter}ms`)
-      await sleep(retryAfter)
-      return await axios.post('https://api.openai.com/v1/chat/completions', payload, { headers })
-    }
+    const status =
+      error?.response?.status
+
+    console.error(
+      `[OpenAI] Request failed with status ${status}:`,
+      error.message
+    )
+
     throw error
   }
 }
 
 app.post('/api/ask-vet', async (req, res) => {
   try {
-    const openAiKey = process.env.OPENAI_API_KEY
+    const openAiKey =
+      process.env.OPENAI_API_KEY
+
     if (!openAiKey) {
-      return res.status(500).json({ error: 'OPENAI_API_KEY no está configurada en el servidor.' })
+      console.error(
+        '[API] OPENAI_API_KEY no está configurada'
+      )
+
+      return res.status(500).json({
+        error:
+          'OPENAI_API_KEY no está configurada.',
+      })
     }
 
-    const response = await requestOpenAICompletion(
-      {
-        model: 'gpt-4.1-mini',
-        messages: [
-          { role: 'system', content: 'Eres un asistente veterinario especializado en mascotas.' },
-          { role: 'user', content: req.body.question },
-        ],
-      },
-      {
-        Authorization: `Bearer ${openAiKey}`,
-        'Content-Type': 'application/json',
-      }
+    const question =
+      req.body.question
+
+    if (!question) {
+      return res.status(400).json({
+        error:
+          'La pregunta es requerida.',
+      })
+    }
+
+    console.log(
+      '[API] Received request for PawHealth AI recommendation'
     )
 
-    res.json(response.data.choices[0].message.content)
+    const response =
+      await requestOpenAICompletion(
+        {
+          model: 'gpt-4.1-mini',
+
+          max_tokens: 300,
+
+          messages: [
+            {
+              role: 'system',
+              content:
+                'Eres un asistente veterinario especializado en mascotas. Responde de forma clara y breve.',
+            },
+            {
+              role: 'user',
+              content: question,
+            },
+          ],
+        },
+        {
+          Authorization: `Bearer ${openAiKey}`,
+          'Content-Type':
+            'application/json',
+        }
+      )
+
+    console.log(
+      '[API] Successfully received response from OpenAI'
+    )
+
+    res.json({
+      answer:
+        response.data.choices[0]
+          .message.content,
+    })
   } catch (err) {
-    const status = err?.response?.status ?? 500
-    console.error('OpenAI request failed:', err)
+    const status =
+      err?.response?.status ?? 500
+
+    console.error(
+      `[API] Error (status ${status}):`,
+      err.message
+    )
+
+    console.log(
+      JSON.stringify(
+        err.response?.data,
+        null,
+        2
+      )
+    )
+
     if (status === 429) {
       return res.status(429).json({
-        error: 'Límite de tasa de OpenAI excedido. Intenta de nuevo en unos segundos.',
-        details: err.response?.data,
+        error:
+          'OpenAI está limitando solicitudes o no tienes créditos disponibles.',
       })
     }
 
     res.status(status).json({
-      error: err?.message ?? 'Error desconocido en el servidor.',
-      details: err.response?.data,
+      error:
+        err?.message ??
+        'Error desconocido en el servidor.',
+      details:
+        err.response?.data,
     })
   }
 })
 
-app.listen(3000, () => console.log('Servidor corriendo en puerto 3000'))
+app.listen(3000, () => {
+  console.log(
+    'Servidor corriendo en puerto 3000'
+  )
+})

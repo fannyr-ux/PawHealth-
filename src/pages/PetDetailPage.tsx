@@ -10,6 +10,7 @@ import {
   getVaccinationTextByPetId,
   saveAIRecommendation,
 } from '../services/pets.service'
+import { formatRecommendation } from '../utils/formatRecommendation'
 
 export default function PetDetailPage() {
   const { id } = useParams()
@@ -150,48 +151,122 @@ export default function PetDetailPage() {
             )}
 
             {/* Recommendation section */}
-        
 
-<div className="mt-8">
-  <h2 className="text-xl font-semibold mb-4">Recommendations</h2>
-  <div className="mt-8">
-    <div className="grid grid-cols-1 gap-4">
-      <button
-        onClick={() => getAIRecommendation(pet.id!)}
-        disabled={isGeneratingRecommendation}
-        className="flex items-center justify-center gap-2 bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 text-white py-3 rounded-xl font-semibold shadow-md transition disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        <FaPaw className="text-white text-lg" />
-        {isGeneratingRecommendation ? 'Generando...' : 'PawHealth AI'}
-      </button>
+
+            <div className="mt-8">
+              <h2 className="text-xl font-semibold mb-4">Recommendations</h2>
+              <div className="mt-8">
+                <div className="grid grid-cols-1 gap-4">
+                  <button
+                    onClick={() => getAIRecommendation(pet.id!)}
+                    disabled={isGeneratingRecommendation}
+                    className="flex items-center justify-center gap-2 bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 text-white py-3 rounded-xl font-semibold shadow-md transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <FaPaw className="text-white text-lg" />
+                    {isGeneratingRecommendation ? 'Generando...' : 'PawHealth AI'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Lista de recomendaciones guardadas */}
+              <div className="mt-6">
+  {recommendations.length > 0 ? (
+    <div className="space-y-6">
+      {recommendations.map((rec) => {
+        const formatted =
+          formatRecommendation(
+            rec.content
+          )
+
+        return (
+          <div
+            key={rec.id}
+            className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6"
+          >
+            <div className="flex items-center justify-between mb-5">
+              <span className="bg-sky-100 text-sky-700 text-xs font-semibold px-3 py-1 rounded-full">
+                {rec.type}
+              </span>
+
+              <span className="text-xs text-slate-400">
+                {new Date(
+                  rec.createdAt
+                ).toLocaleString()}
+              </span>
+            </div>
+
+            {/* Routine */}
+            <div className="mb-6">
+              <h2 className="text-lg font-bold text-slate-800 mb-3">
+                🐾 Rutina
+              </h2>
+
+              <ul className="space-y-2">
+                {formatted.routine.map(
+                  (item, index) => (
+                    <li
+                      key={index}
+                      className="bg-slate-50 rounded-lg p-3 text-slate-700"
+                    >
+                      {item}
+                    </li>
+                  )
+                )}
+              </ul>
+            </div>
+
+            {/* Diet */}
+            <div className="mb-6">
+              <h2 className="text-lg font-bold text-slate-800 mb-3">
+                🍖 Dieta
+              </h2>
+
+              <ul className="space-y-2">
+                {formatted.diet.map(
+                  (item, index) => (
+                    <li
+                      key={index}
+                      className="bg-slate-50 rounded-lg p-3 text-slate-700"
+                    >
+                      {item}
+                    </li>
+                  )
+                )}
+              </ul>
+            </div>
+
+            {/* Vaccines */}
+            <div>
+              <h2 className="text-lg font-bold text-slate-800 mb-3">
+                💉 Vacunas
+              </h2>
+
+              <ul className="space-y-2">
+                {formatted.vaccines.map(
+                  (item, index) => (
+                    <li
+                      key={index}
+                      className="bg-slate-50 rounded-lg p-3 text-slate-700"
+                    >
+                      {item}
+                    </li>
+                  )
+                )}
+              </ul>
+            </div>
+          </div>
+        )
+      })}
     </div>
-  </div>
-
-  {/* Lista de recomendaciones guardadas */}
-  <div className="mt-6">
-    {recommendations.length > 0 ? (
-      <ul className="space-y-4">
-        {recommendations.map((rec) => (
-          <li key={rec.id} className="bg-sky-50 border border-sky-200 rounded-xl p-4">
-            <p className="text-slate-700">
-              <strong>{rec.type.toUpperCase()}:</strong> {rec.content}
-            </p>
-            <p className="text-xs text-gray-400 mt-2">
-              {new Date(rec.createdAt).toLocaleString()}
-            </p>
-          </li>
-        ))}
-      </ul>
-    ) : (
-      <p className="italic text-gray-400">No hay recomendaciones aún.</p>
-    )}
-  </div>
+  ) : (
+    <div className="bg-slate-50 border border-dashed border-slate-300 rounded-2xl p-10 text-center">
+      <p className="italic text-slate-400">
+        No hay recomendaciones aún.
+      </p>
+    </div>
+  )}
 </div>
-
-
-
-            {/* Action button */}
-
+            </div>
           </div>
         </div>
       </div>
