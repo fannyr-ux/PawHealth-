@@ -1,37 +1,36 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import Navbar from '../components/Navbar'
-import { db } from '../firebase/config'
-import { collection, doc, getDoc, getDocs, query, setDoc, where } from 'firebase/firestore'
 import { Pet } from '../interfaces/pet.interface'
 import { FaPaw } from 'react-icons/fa'
 import { askVetAI } from '../services/openai.service'
+import {
+  getPetById,
+  getRecommendationsByPetId,
+  getVaccinationTextByPetId,
+  saveAIRecommendation,
+} from '../services/pets.service'
 
 export default function PetDetailPage() {
   const { id } = useParams()
   const [pet, setPet] = useState<Pet | null>(null)
-  const [showVaccinationCard, setShowVaccinationCard] =
-    useState(false)
+  const [showVaccinationCard, setShowVaccinationCard] = useState(false)
+  const [recommendations, setRecommendations] = useState<any[]>([])
+  const [isGeneratingRecommendation, setIsGeneratingRecommendation] = useState(false)
+
   useEffect(() => {
     const fetchPet = async () => {
       if (!id) return
-      const docRef = doc(db, 'pets', id)
-      const snapshot = await getDoc(docRef)
-      if (snapshot.exists()) {
-        setPet({ id: snapshot.id, ...snapshot.data() } as Pet)
-      }
+      const fetchedPet = await getPetById(id)
+      setPet(fetchedPet)
     }
     fetchPet()
   }, [id])
 
-  const [recommendations, setRecommendations] = useState<any[]>([])
-
   useEffect(() => {
     const fetchRecommendations = async () => {
       if (!pet?.id) return
-      const q = query(collection(db, 'aiRecommendations'), where('petId', '==', pet.id))
-      const snapshot = await getDocs(q)
-      const recs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+      const recs = await getRecommendationsByPetId(pet.id)
       setRecommendations(recs)
     }
     fetchRecommendations()
@@ -45,28 +44,40 @@ export default function PetDetailPage() {
     )
   }
 
+  const getAIRecommendation = async (petId: string) => {
+    if (isGeneratingRecommendation) return
 
- // función que se dispara al hacer clic
-const getAIRecommendation = async (petId: string) => {
-  try {
-    // Aquí puedes personalizar la pregunta con datos del carnet
-    const question = `Con los datos del carnet de ${petId}, dame recomendaciones de rutina, dieta y vacunas pendientes.`
-    const aiText = await askVetAI(question)
+    try {
+      setIsGeneratingRecommendation(true)
+      const vaccinationData = await getVaccinationTextByPetId(petId)
 
-    // Guardar en Firestore
-    await setDoc(doc(db, 'aiRecommendations', `${petId}-routine`), {
-      petId,
-      type: 'routine-diet-vaccines',
-      content: aiText,
-      createdAt: Date.now(),
-    })
+      const question = `Con estos datos del carnet:\n${vaccinationData}\n\nDame recomendaciones de rutina, dieta y vacunas pendientes para esta mascota.`
+      const aiText = await askVetAI(question)
 
-    alert(`Recomendación guardada:\n${aiText}`)
-  } catch (err) {
-    console.error('Error al pedir recomendación AI:', err)
-    alert('Hubo un error al obtener la recomendación.')
+      await saveAIRecommendation(petId, aiText)
+      setRecommendations((prev) => [
+        ...prev,
+        {
+          id: `${petId}-routine`,
+          petId,
+          type: 'routine-diet-vaccines',
+          content: aiText,
+          createdAt: Date.now(),
+        },
+      ])
+
+      alert(`Recomendación guardada:\n${aiText}`)
+    } catch (err) {
+      console.error('Error al pedir recomendación AI:', err)
+      alert(
+        err instanceof Error
+          ? `Hubo un error: ${err.message}`
+          : 'Hubo un error al obtener la recomendación.'
+      )
+    } finally {
+      setIsGeneratingRecommendation(false)
+    }
   }
-}
 
   return (
     <div className="min-h-screen bg-sky-100">
@@ -147,10 +158,11 @@ const getAIRecommendation = async (petId: string) => {
     <div className="grid grid-cols-1 gap-4">
       <button
         onClick={() => getAIRecommendation(pet.id!)}
-        className="flex items-center justify-center gap-2 bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 text-white py-3 rounded-xl font-semibold shadow-md transition"
+        disabled={isGeneratingRecommendation}
+        className="flex items-center justify-center gap-2 bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 text-white py-3 rounded-xl font-semibold shadow-md transition disabled:opacity-50 disabled:cursor-not-allowed"
       >
         <FaPaw className="text-white text-lg" />
-        PawHealth AI
+        {isGeneratingRecommendation ? 'Generando...' : 'PawHealth AI'}
       </button>
     </div>
   </div>
